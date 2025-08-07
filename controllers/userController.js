@@ -5,20 +5,19 @@ const userController = {
   // Lấy ra danh sách tất cả người dùng từ AuthDB
   getUser: async (req, res) => {
     try {
-      // Chuyển param từ string sang ObjectId để so sánh
-      const myId = new mongoose.Types.ObjectId(req.params.myId);
+      const myId = req.params.myId;
 
       const users = await AuthDB.aggregate([
         // Lọc ra tất cả người dùng khác myId
         {
-          $match: { _id: { $ne: myId } },
+          $match: { userId: { $ne: myId } },
         },
 
         // Lookup vào bảng messages để lấy tin nhắn cuối cùng giữa myId và otherId
         {
           $lookup: {
             from: "messages",
-            let: { otherId: "$_id" }, // Id của người khác
+            let: { otherId: "$userId" }, // Id của người khác
             pipeline: [
               {
                 // Lọc message liên quan đến myId và otherId
@@ -27,18 +26,14 @@ const userController = {
                     $or: [
                       {
                         $and: [
-                          {
-                            $eq: [{ $toObjectId: "$senderId" }, "$$otherId"],
-                          },
-                          { $eq: [{ $toObjectId: "$receiverId" }, myId] },
+                          { $eq: ["$senderId", "$$otherId"] },
+                          { $eq: ["$receiverId", myId] },
                         ],
                       },
                       {
                         $and: [
-                          { $eq: [{ $toObjectId: "$senderId" }, myId] },
-                          {
-                            $eq: [{ $toObjectId: "$receiverId" }, "$$otherId"],
-                          },
+                          { $eq: ["$senderId", myId] },
+                          { $eq: ["$receiverId", "$$otherId"] },
                         ],
                       },
                     ],
@@ -60,9 +55,10 @@ const userController = {
         },
         {
           $project: {
-            userId: "$_id",
+            userId: "$userId",
             username: "$username",
             email: "$email",
+            image: "@image",
             lastMessage: "$lastMessage.text",
             lastMessageTime: "$lastMessage.createdAt",
           },

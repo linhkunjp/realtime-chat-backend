@@ -3,11 +3,8 @@ const authController = require("../controllers/authController");
 const chatController = require("../controllers/chatController");
 const userController = require("../controllers/userController");
 
-// Register
-router.post("/auth/register", authController.registerUser);
-
-// Login
-router.post("/auth/login", authController.loginUser);
+// Save user clerk to mongodb
+router.post("/auth/users", authController.saveUserToMongo);
 
 // Get chat detail
 router.get("/chat/detail/:senderId/:receiverId", chatController.getChatDetail);
