@@ -40,12 +40,13 @@ const userController = {
                   },
                 },
               },
-              { $sort: { createdAt: -1 } }, // Sắp xếp theo thời gian giảm dần
-              { $limit: 1 }, // Lấy 1 tin nhắn mới nhất
+              { $sort: { createdAt: -1 } },
+              { $limit: 1 },
             ],
             as: "lastMessage",
           },
         },
+
         // Unwind để biến mảng lastMessage thành object
         {
           $unwind: {
@@ -53,16 +54,20 @@ const userController = {
             preserveNullAndEmptyArrays: true, // Cho phép hiển thị khi chưa có message
           },
         },
+
+        // Chỉ lấy thông tin cần thiết
         {
           $project: {
             userId: "$userId",
             username: "$username",
             email: "$email",
-            image: "@image",
+            image: "$image",
             lastMessage: "$lastMessage.text",
             lastMessageTime: "$lastMessage.createdAt",
+            lastSenderId: "$lastMessage.senderId",
           },
         },
+
         { $sort: { lastMessageTime: -1 } },
       ]);
 

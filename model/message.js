@@ -13,6 +13,12 @@ const messageSchema = new mongoose.Schema(
       required: true,
     },
     text: { type: String, required: true },
+    reactions: [
+      {
+        userId: { type: String, required: true },
+        type: { type: String, required: true },
+      },
+    ],
   },
   { timestamps: true }
 );
