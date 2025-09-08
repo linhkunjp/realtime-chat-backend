@@ -26,26 +26,6 @@ const chatController = {
       });
     }
   },
-
-  // Create conversation
-  createConversation: async (req, res) => {
-    const { senderId, receiverId, text } = req.body;
-
-    try {
-      const newMessage = await Message.create({ senderId, receiverId, text });
-
-      res.json({
-        isSuccess: true,
-        data: newMessage,
-        messages: "Gửi tin nhắn thành công",
-      });
-    } catch (err) {
-      res.status(500).json({
-        isSuccess: false,
-        message: "Lỗi hệ thống, vui lòng thử lại sau",
-      });
-    }
-  },
 };
 
 module.exports = chatController;

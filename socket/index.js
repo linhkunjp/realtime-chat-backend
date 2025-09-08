@@ -15,21 +15,31 @@ const initSocket = (io) => {
       io.emit("onlineUsers", Array.from(onlineUsers.keys()));
     });
 
-    socket.on("sendMessage", async ({ senderId, receiverId, text }) => {
-      const newMessage = new Message({ senderId, receiverId, text });
-      await newMessage.save();
+    socket.on("sendMessage", async (msg) => {
+      try {
+        const { tempId, senderId, receiverId, text, images } = msg;
 
-      io.to(receiverId).emit("receiveMessage", newMessage);
+        const newMessage = new Message({ senderId, receiverId, text, images });
+        await newMessage.save();
 
-      const lastMessage = {
-        text: newMessage.text,
-        senderId,
-        receiverId,
-        createdAt: newMessage.createdAt,
-      };
+        const emitMsg = { ...newMessage.toObject(), tempId };
 
-      io.to(senderId).emit("lastMessageUpdate", lastMessage);
-      io.to(receiverId).emit("lastMessageUpdate", lastMessage);
+        // Gửi cho receiver và sender
+        io.to(receiverId).emit("receiveMessage", emitMsg);
+        io.to(senderId).emit("receiveMessage", emitMsg);
+
+        const lastMessage = {
+          text: newMessage.text,
+          images: newMessage.images,
+          senderId,
+          receiverId,
+          createdAt: newMessage.createdAt,
+        };
+        io.to(senderId).emit("lastMessageUpdate", lastMessage);
+        io.to(receiverId).emit("lastMessageUpdate", lastMessage);
+      } catch (err) {
+        console.error("sendMessage error", err);
+      }
     });
 
     socket.on("addReaction", async ({ messageId, userId, type }) => {

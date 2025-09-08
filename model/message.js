@@ -12,7 +12,8 @@ const messageSchema = new mongoose.Schema(
       ref: "AuthDB",
       required: true,
     },
-    text: { type: String, required: true },
+    text: { type: String },
+    images: [{ type: String }],
     reactions: [
       {
         userId: { type: String, required: true },

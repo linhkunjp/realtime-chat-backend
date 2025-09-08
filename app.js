@@ -4,6 +4,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const { Server } = require("socket.io");
 const chatRoute = require("./routes/chat");
+const uploadRoute = require("./routes/upload");
 const connectToMongoDB = require("./services/dbConnect");
 const initSocket = require("./socket/index");
 
@@ -25,6 +26,7 @@ app.use(express.json());
 
 // Routes
 app.use("/v1", chatRoute);
+app.use("/v1", uploadRoute);
 
 initSocket(io);
 

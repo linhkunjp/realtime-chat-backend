@@ -9,9 +9,6 @@ router.post("/auth/users", authController.saveUserToMongo);
 // Get chat detail
 router.get("/chat/detail/:senderId/:receiverId", chatController.getChatDetail);
 
-// Create conversation
-router.post("/chat", chatController.createConversation);
-
 // Get chat list
 router.get("/chat/list/:myId", userController.getUser);
 
