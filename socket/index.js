@@ -1,18 +1,45 @@
 const Message = require("../model/message");
-
+const AuthDB = require("../model/auth");
 const onlineUsers = new Map();
+
+const resolveUsername = async (userId) => {
+  const info = onlineUsers.get(userId);
+  if (info && info.username) return info.username;
+  const user = await AuthDB.findOne({ userId }).select("username").lean();
+  return user?.username || "";
+};
 
 const initSocket = (io) => {
   io.on("connection", (socket) => {
     console.log("🟢 New client connected:", socket.id);
 
-    socket.on("join", (userId) => {
-      // Thêm vào danh sách online
-      onlineUsers.set(userId, socket.id);
-      socket.join(userId);
+    socket.on("join", (payload) => {
+      try {
+        let userId, username;
+        if (payload && typeof payload === "object" && payload.userId) {
+          userId = payload.userId;
+          username = payload.username;
+        } else {
+          userId = payload;
+        }
+        if (!userId) return;
 
-      // Gửi danh sách online mới
-      io.emit("onlineUsers", Array.from(onlineUsers.keys()));
+        const entry = onlineUsers.get(userId);
+        if (entry) {
+          entry.sockets.add(socket.id);
+          if (username) entry.username = username;
+        } else {
+          onlineUsers.set(userId, {
+            sockets: new Set([socket.id]),
+            username: username || undefined,
+          });
+        }
+
+        socket.join(userId);
+        io.emit("onlineUsers", Array.from(onlineUsers.keys()));
+      } catch (err) {
+        console.error("join error", err);
+      }
     });
 
     socket.on("sendMessage", async (msg) => {
@@ -28,12 +55,22 @@ const initSocket = (io) => {
         io.to(receiverId).emit("receiveMessage", emitMsg);
         io.to(senderId).emit("receiveMessage", emitMsg);
 
+        const reactorName = await resolveUsername(senderId);
+
         const lastMessage = {
+          messageId: newMessage._id,
           text: newMessage.text,
           images: newMessage.images,
           senderId,
           receiverId,
+          senderName: reactorName,
           createdAt: newMessage.createdAt,
+          type:
+            newMessage.images.length > 0
+              ? "image"
+              : newMessage.text
+              ? "text"
+              : "reaction",
         };
         io.to(senderId).emit("lastMessageUpdate", lastMessage);
         io.to(receiverId).emit("lastMessageUpdate", lastMessage);
@@ -47,7 +84,6 @@ const initSocket = (io) => {
         const message = await Message.findById(messageId);
         if (!message) return;
 
-        // Update nếu đã reaction trước đó
         const existing = message.reactions.find((r) => r.userId === userId);
         if (existing) {
           existing.type = type;
@@ -58,14 +94,30 @@ const initSocket = (io) => {
         await message.save();
 
         // Emit update tới cả sender và receiver
-        io.to(message.senderId).emit("reactionUpdate", {
+        const payload = {
           messageId: message._id,
           reactions: message.reactions,
-        });
-        io.to(message.receiverId).emit("reactionUpdate", {
+        };
+        io.to(message.senderId).emit("reactionUpdate", payload);
+        io.to(message.receiverId).emit("reactionUpdate", payload);
+
+        const reactorName = await resolveUsername(userId);
+
+        // Emit thêm lastMessageUpdate
+        const lastMessage = {
           messageId: message._id,
+          text: message.text,
+          images: message.images,
           reactions: message.reactions,
-        });
+          senderId: userId,
+          senderName: reactorName,
+          receiverId:
+            message.senderId === userId ? message.receiverId : message.senderId,
+          createdAt: message.createdAt,
+          type: "reaction",
+        };
+        io.to(message.senderId).emit("lastMessageUpdate", lastMessage);
+        io.to(message.receiverId).emit("lastMessageUpdate", lastMessage);
       } catch (err) {
         console.error("❌ Error in addReaction:", err);
       }
@@ -81,14 +133,29 @@ const initSocket = (io) => {
         );
         await message.save();
 
-        io.to(message.senderId).emit("reactionUpdate", {
+        const payload = {
           messageId: message._id,
           reactions: message.reactions,
-        });
-        io.to(message.receiverId).emit("reactionUpdate", {
+        };
+        io.to(message.senderId).emit("reactionUpdate", payload);
+        io.to(message.receiverId).emit("reactionUpdate", payload);
+
+        const actorName = await resolveUsername(userId);
+
+        // Emit thêm lastMessageUpdate
+        const lastMessage = {
           messageId: message._id,
+          text: message.text,
+          images: message.images,
           reactions: message.reactions,
-        });
+          senderId: message.senderId,
+          senderName: actorName,
+          receiverId: message.receiverId,
+          createdAt: message.createdAt,
+          type: "reaction",
+        };
+        io.to(message.senderId).emit("lastMessageUpdate", lastMessage);
+        io.to(message.receiverId).emit("lastMessageUpdate", lastMessage);
       } catch (err) {
         console.error("❌ Error in removeReaction:", err);
       }
@@ -103,9 +170,10 @@ const initSocket = (io) => {
 
     socket.on("disconnect", () => {
       // Xóa user khỏi danh sách online
-      for (const [userId, sId] of onlineUsers.entries()) {
-        if (sId === socket.id) {
-          onlineUsers.delete(userId);
+      for (const [uid, info] of onlineUsers.entries()) {
+        if (info.sockets.has(socket.id)) {
+          info.sockets.delete(socket.id);
+          if (info.sockets.size === 0) onlineUsers.delete(uid);
           break;
         }
       }

@@ -55,6 +55,46 @@ const userController = {
           },
         },
 
+        {
+          $lookup: {
+            from: "auths",
+            localField: "lastMessage.senderId",
+            foreignField: "userId",
+            as: "lastSenderUser",
+          },
+        },
+        {
+          $unwind: {
+            path: "$lastSenderUser",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+
+        // Thêm field xác định lastmessage
+        {
+          $addFields: {
+            lastMessageType: {
+              $switch: {
+                branches: [
+                  {
+                    case: { $gt: [{ $size: "$lastMessage.images" }, 0] },
+                    then: "image",
+                  },
+                  {
+                    case: { $gt: [{ $size: "$lastMessage.reactions" }, 0] },
+                    then: "reaction",
+                  },
+                  {
+                    case: { $ne: ["$lastMessage.text", ""] },
+                    then: "text",
+                  },
+                ],
+                default: "none",
+              },
+            },
+          },
+        },
+
         // Chỉ lấy thông tin cần thiết
         {
           $project: {
@@ -65,6 +105,11 @@ const userController = {
             lastMessage: "$lastMessage.text",
             lastMessageTime: "$lastMessage.createdAt",
             lastSenderId: "$lastMessage.senderId",
+            lastMessageId: "$lastMessage._id",
+            lastMessageImgFile: "$lastMessage.images",
+            lastMessageReactions: "$lastMessage.reactions",
+            lastSenderName: "$lastSenderUser.username",
+            lastMessageType: 1,
           },
         },
 
