@@ -46,7 +46,13 @@ const initSocket = (io) => {
       try {
         const { tempId, senderId, receiverId, text, images } = msg;
 
-        const newMessage = new Message({ senderId, receiverId, text, images });
+        const newMessage = new Message({
+          senderId,
+          receiverId,
+          text,
+          images,
+          isReaded: false,
+        });
         await newMessage.save();
 
         const emitMsg = { ...newMessage.toObject(), tempId };
@@ -71,11 +77,70 @@ const initSocket = (io) => {
               : newMessage.text
               ? "text"
               : "reaction",
+          isReaded: newMessage.isReaded,
         };
         io.to(senderId).emit("lastMessageUpdate", lastMessage);
         io.to(receiverId).emit("lastMessageUpdate", lastMessage);
       } catch (err) {
         console.error("sendMessage error", err);
+      }
+    });
+
+    // Đánh dấu đã đọc
+    socket.on("markAsRead", async ({ myId, otherId }) => {
+      try {
+        await Message.updateMany(
+          { senderId: otherId, receiverId: myId, isReaded: false },
+          { $set: { isReaded: true } }
+        );
+
+        // Người đọc
+        io.to(myId).emit("messagesRead", {
+          readerId: myId,
+          conversationWith: otherId,
+        });
+
+        // Người gửi
+        io.to(otherId).emit("messagesRead", {
+          readerId: myId,
+          conversationWith: otherId,
+        });
+
+        // Emit thêm lastMessageUpdate cho cả 2
+        const lastMsg = await Message.findOne({
+          $or: [
+            { senderId: myId, receiverId: otherId },
+            { senderId: otherId, receiverId: myId },
+          ],
+        })
+          .sort({ createdAt: -1 })
+          .lean();
+
+        if (lastMsg) {
+          const reactorName = await resolveUsername(lastMsg.senderId);
+
+          const lastMessage = {
+            messageId: lastMsg._id,
+            text: lastMsg.text,
+            images: lastMsg.images,
+            senderId: lastMsg.senderId,
+            receiverId: lastMsg.receiverId,
+            senderName: reactorName,
+            createdAt: lastMsg.createdAt,
+            type:
+              lastMsg.images.length > 0
+                ? "image"
+                : lastMsg.text
+                ? "text"
+                : "reaction",
+            isReaded: true,
+          };
+
+          io.to(myId).emit("lastMessageUpdate", lastMessage);
+          io.to(otherId).emit("lastMessageUpdate", lastMessage);
+        }
+      } catch (err) {
+        console.error("markAsRead error:", err);
       }
     });
 

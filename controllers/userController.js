@@ -77,11 +77,21 @@ const userController = {
               $switch: {
                 branches: [
                   {
-                    case: { $gt: [{ $size: "$lastMessage.images" }, 0] },
+                    case: {
+                      $gt: [
+                        { $size: { $ifNull: ["$lastMessage.images", []] } },
+                        0,
+                      ],
+                    },
                     then: "image",
                   },
                   {
-                    case: { $gt: [{ $size: "$lastMessage.reactions" }, 0] },
+                    case: {
+                      $gt: [
+                        { $size: { $ifNull: ["$lastMessage.reactions", []] } },
+                        0,
+                      ],
+                    },
                     then: "reaction",
                   },
                   {
@@ -110,6 +120,18 @@ const userController = {
             lastMessageReactions: "$lastMessage.reactions",
             lastSenderName: "$lastSenderUser.username",
             lastMessageType: 1,
+            isReaded: {
+              $cond: {
+                if: {
+                  $and: [
+                    { $eq: ["$lastMessage.receiverId", myId] },
+                    { $eq: ["$lastMessage.isReaded", false] },
+                  ],
+                },
+                then: false,
+                else: true,
+              },
+            },
           },
         },
 
