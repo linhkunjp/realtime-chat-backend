@@ -77,7 +77,7 @@ const initSocket = (io) => {
               : newMessage.text
               ? "text"
               : "reaction",
-          isReaded: newMessage.isReaded,
+          isReaded: false,
         };
         io.to(senderId).emit("lastMessageUpdate", lastMessage);
         io.to(receiverId).emit("lastMessageUpdate", lastMessage);
@@ -105,40 +105,6 @@ const initSocket = (io) => {
           readerId: myId,
           conversationWith: otherId,
         });
-
-        // Emit thêm lastMessageUpdate cho cả 2
-        const lastMsg = await Message.findOne({
-          $or: [
-            { senderId: myId, receiverId: otherId },
-            { senderId: otherId, receiverId: myId },
-          ],
-        })
-          .sort({ createdAt: -1 })
-          .lean();
-
-        if (lastMsg) {
-          const reactorName = await resolveUsername(lastMsg.senderId);
-
-          const lastMessage = {
-            messageId: lastMsg._id,
-            text: lastMsg.text,
-            images: lastMsg.images,
-            senderId: lastMsg.senderId,
-            receiverId: lastMsg.receiverId,
-            senderName: reactorName,
-            createdAt: lastMsg.createdAt,
-            type:
-              lastMsg.images.length > 0
-                ? "image"
-                : lastMsg.text
-                ? "text"
-                : "reaction",
-            isReaded: true,
-          };
-
-          io.to(myId).emit("lastMessageUpdate", lastMessage);
-          io.to(otherId).emit("lastMessageUpdate", lastMessage);
-        }
       } catch (err) {
         console.error("markAsRead error:", err);
       }
@@ -169,7 +135,7 @@ const initSocket = (io) => {
         const reactorName = await resolveUsername(userId);
 
         // Emit thêm lastMessageUpdate
-        const lastMessage = {
+        const lastMessageInit = {
           messageId: message._id,
           text: message.text,
           images: message.images,
@@ -178,11 +144,18 @@ const initSocket = (io) => {
           senderName: reactorName,
           receiverId:
             message.senderId === userId ? message.receiverId : message.senderId,
-          createdAt: message.createdAt,
+          createdAt: message.updatedAt || new Date(),
           type: "reaction",
+          isReaded: message.isReaded,
         };
-        io.to(message.senderId).emit("lastMessageUpdate", lastMessage);
-        io.to(message.receiverId).emit("lastMessageUpdate", lastMessage);
+        const participants = [message.senderId, message.receiverId];
+        for (const pid of participants) {
+          const lastMessage = {
+            ...lastMessageInit,
+            isReaded: pid === userId ? true : false,
+          };
+          io.to(pid).emit("lastMessageUpdate", lastMessage);
+        }
       } catch (err) {
         console.error("❌ Error in addReaction:", err);
       }
@@ -204,23 +177,6 @@ const initSocket = (io) => {
         };
         io.to(message.senderId).emit("reactionUpdate", payload);
         io.to(message.receiverId).emit("reactionUpdate", payload);
-
-        const actorName = await resolveUsername(userId);
-
-        // Emit thêm lastMessageUpdate
-        const lastMessage = {
-          messageId: message._id,
-          text: message.text,
-          images: message.images,
-          reactions: message.reactions,
-          senderId: message.senderId,
-          senderName: actorName,
-          receiverId: message.receiverId,
-          createdAt: message.createdAt,
-          type: "reaction",
-        };
-        io.to(message.senderId).emit("lastMessageUpdate", lastMessage);
-        io.to(message.receiverId).emit("lastMessageUpdate", lastMessage);
       } catch (err) {
         console.error("❌ Error in removeReaction:", err);
       }

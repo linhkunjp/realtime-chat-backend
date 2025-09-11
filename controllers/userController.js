@@ -79,20 +79,20 @@ const userController = {
                   {
                     case: {
                       $gt: [
-                        { $size: { $ifNull: ["$lastMessage.images", []] } },
-                        0,
-                      ],
-                    },
-                    then: "image",
-                  },
-                  {
-                    case: {
-                      $gt: [
                         { $size: { $ifNull: ["$lastMessage.reactions", []] } },
                         0,
                       ],
                     },
                     then: "reaction",
+                  },
+                  {
+                    case: {
+                      $gt: [
+                        { $size: { $ifNull: ["$lastMessage.images", []] } },
+                        0,
+                      ],
+                    },
+                    then: "image",
                   },
                   {
                     case: { $ne: ["$lastMessage.text", ""] },
